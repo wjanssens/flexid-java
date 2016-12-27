@@ -21,20 +21,6 @@ import java.util.logging.Logger;
  * expose the sorted identifiers in URLs.  To overcome this limitation it is recommended to translate IDs before showing
  * them to users by using HashIds (http://hashids.org/) or Knuth's Integer Hash.
  * The time component of the id locates the ID in time.
- *
- *
- * <li>the time value will roll over every 2231 years
- * <li>since longs are signed in Java, negative ids will appear in 1115 years
- * <li>the time is the first part of the key to facilitate an implied temporal order to IDs.
- * The sequence component of the id allows up to 1024 ids to be generated per millisecond per partition.
- * <li>this implementation keeps a serial counter for sequence
- * <li>other stateless implementations may use a random serial value
- * The partition component of the id has one of the following uses:
- * <li>guarantee uniqueness across partitions that may have time drift
- * <li>create a pool of generators capable of generating more than 1024 IDs per millisecond
- * <li>compute a shard value that may be used to locate data onto to a particular node
- *
- *
  */
 public class FlexId {
     private static final Logger logger = Logger.getLogger(FlexId.class.getName());
