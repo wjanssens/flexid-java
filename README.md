@@ -18,11 +18,12 @@ This library is inspired by two different id generation strategies: type 1 UUIDs
     * 32 bits for seconds since UNIX epoch results in rollover in 136 years since epoch (i.e. 2106) 
       which seems like insufficient longevity
     * 24 bits for counter results in 4294967296 IDs per second per machine which seems like overkill
-* By default, FlexIDs have 46 bits for time, 10 bits for sequence, 8 bits for partition
+* By default, FlexIDs have 48 bits for time, 8 bits for sequence, 8 bits for partition
     * 64 bit numbers are perfect for languages and storage mediums that only support 64 bit integers
-    * 46 bits for ms results in negative values in 1115 years, and a rollover in 2231 years
-    * 10 bits sequence allows for 1024 ids per millisecond
+    * 48 bits for ms results in negative values in 4462 years, and a rollover in 8925 years
+    * 8 bits sequence allows for 256 ids per millisecond
     * 8 bits for partition allows for 256 partitions
+    * 8 bit values for sequence and partition results in IDs where all components are clearly visible in the output 
 
 The exact division is configurable, but the following guidelines should be followed:
 * time should be 43-47 bits, for between 557 - 8925 of positive values 
