@@ -16,18 +16,17 @@ import java.util.logging.Logger;
  *
  * This system of generating IDs requires no central authority to generate key values.
  *
- * Since the time component of the ID is the first bits of the integer IDs are inherently sortable.
- * This is advantage for storage and retrieval of rows in a database, but may be a disadvantage if it's not desirable to
- * expose the sorted identifiers in URLs.  To overcome this limitation it is recommended to translate IDs before showing
- * them to users by using HashIds (http://hashids.org/) or Knuth's Integer Hash.
- * The time component of the id locates the ID in time.
+ * Since the time component of the ID is the first bits of the integer, IDs are inherently sortable.
+ * This is often an advantage for storage and retrieval of rows in a database since it makes entities sortable and
+ * captures the creation timestamp without the use of an extra column, but may be a disadvantage if it's not desirable
+ * to expose the sorted identifiers in URLs.  To overcome this limitation it is recommended to translate IDs before
+ * showing them to users by using HashIds (http://hashids.org/) or Knuth's Integer Hash.
  */
 public class FlexId {
     private static final Logger logger = Logger.getLogger(FlexId.class.getName());
 
     public static final long UNIX_EPOCH = 0L;
     public static final long DEFAULT_EPOCH = 1420070400000L;
-    public static final long INSTAGRAM_EPOCH = 1293840000000L;
 
     private final int sequenceBits;
     private final int partitionBits;
@@ -195,7 +194,7 @@ public class FlexId {
 
     /**
      * A convenience method for computing a partition value from a string using an SHA-256 hash.
-     * This would typically be used to compute a shard id from a string identifier.
+     * This would typically be used to compute a shard ID from a string identifier such as a username.
      */
     public static int sha256(String text) {
         try {
