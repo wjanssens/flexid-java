@@ -155,9 +155,18 @@ public class FlexId {
 
     /**
      * Extracts the millis component of an ID.
+     * This is the raw value and is not adjusted for epoch.
      */
     public long millis(long id) {
         return id >> (sequenceBits + partitionBits);
+    }
+
+    /**
+     * Extracts the date/time component of an ID.
+     * This is the derived from the millis component of the ID with the configured epoch applied.
+     */
+    public OffsetDateTime timestamp(long id) {
+        return Instant.ofEpochMilli(millis(id) + epoch).atOffset(ZoneOffset.UTC);
     }
 
     /**

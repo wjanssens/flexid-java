@@ -1,6 +1,11 @@
 import org.testng.annotations.Test;
 
+import java.time.Instant;
+import java.time.OffsetDateTime;
+
 public class FlexIdTest {
+
+    public static final long INSTAGRAM_EPOCH = 1293840000000L;
 
     @Test
     public void testMillis() {
@@ -67,7 +72,7 @@ public class FlexIdTest {
 
     @Test
     public void test_10_13() {
-        final FlexId g = new FlexId(FlexId.INSTAGRAM_EPOCH, 10, 13);
+        final FlexId g = new FlexId(INSTAGRAM_EPOCH, 10, 13);
         long id = g.generate(0x5A5A5A5A5L, 0x25A, 0xA5);
         assert 0x2D2D2D2D2CB40A5L == id : "Incorrect id " + id;
         assert 0x25A == g.sequence(id) : "Incorrect sequence " + g.sequence(id);
@@ -76,7 +81,7 @@ public class FlexIdTest {
 
     @Test
     public void test_0_0() {
-        final FlexId g = new FlexId(FlexId.INSTAGRAM_EPOCH, 0, 0);
+        final FlexId g = new FlexId(INSTAGRAM_EPOCH, 0, 0);
         long id = g.generate(0x5A5A5A5A5L, 0x25a, 0xa5);
         assert 0x5A5A5A5A5L == id : "Incorrect id " + id;
         assert 0x00 == g.sequence(id) : "Incorrect sequence " + g.sequence(id);
@@ -87,8 +92,22 @@ public class FlexIdTest {
     public void test_Default() {
         final FlexId g = new FlexId();
         long id = g.generate();
-        assert System.currentTimeMillis() << 16 == id : "Incorrect id " + id; // TODO possible race condition here
+        assert (System.currentTimeMillis() << 16) - id < 1 : "Incorrect id " + id;
         assert 0x00 == g.sequence(id) : "Incorrect sequence " + g.sequence(id);
         assert 0x00 == g.partition(id) : "Incorrect partition " + g.partition(id);
+    }
+
+    @Test
+    public void test_Timestamp_DefaultEpoch() {
+        final FlexId g = new FlexId();
+        long id = g.generate();
+        assert Instant.now().compareTo(g.timestamp(id).toInstant()) < 1000 : "Incorrect timestamp " + g.timestamp(id);
+    }
+
+    @Test
+    public void test_Timestamp_CustomEpoch() {
+        final FlexId g = new FlexId(FlexId.DEFAULT_EPOCH, 8, 8);
+        long id = g.generate();
+        assert Instant.now().compareTo(g.timestamp(id).toInstant()) < 1000 : "Incorrect timestamp " + g.timestamp(id);
     }
 }
