@@ -29,7 +29,7 @@ The exact division is configurable, but the following guidelines should be follo
 * time should be 43-47 bits, for between 557 - 8925 of positive values 
   (44-48 bits for between 1115 and 17851 years with negative values)
   * The HashIds algorithm doesn't work with negative values, which needs to be considered
-    when deciding how many bits to assign to time since Java only has unsigned integers.
+    when deciding how many bits to assign to time since many languages only has unsigned integers.
 * sequence should be 4-12 bits, for between 16 and 4096 ids/ms/partition
 * partition should be 4-12 bits, for between 16 and 4096 partitions
 * the most common configurations are 47/8/8 and 45/10/8 but you should evaluate your longevity and scalability 
@@ -43,6 +43,28 @@ The order of the components is debatable, but this implementation adopts the sam
 results in an order of decreasing change; time, sequence, partition.  
 This differs from the order adopted by Instagram, so this library cannot be used to generate Instagram compatible Ids.
 
+There are many ways that you may decide to partition your ID space:
+* By Entity: Splitting up your ID space base on table or class
+    * If all entities share an ID space then you don't need to reserve
+      any space for them in the partition field.  This is the preferred scenario.
+    * If it's desirable to identify the type of entity from the ID then some number of bits of the partition need
+      to be assigned to identify the entity.
+* By Domain: Splitting up a database based on business domain.
+    * If domains are completely independent and it's OK for IDs to overlap between domains then
+      none of the partition bits need to be assigned to identify the domain.
+      This is the preferred scenario.
+    * If domains share an ID space then some number of bits of the partition field should be 
+      assigned to identify the domain and prevent collisions between domains.
+* By Shard: Splitting up a database row-wise, typically by user.
+    * Each shard needs to be assigned a unique ID and data is mapped onto a shard.
+    * The number of physical shards 
+* By Cluster: Using multiple application servers to access the same database.
+    * If your application servers are stateless and don't assign IDs then you don't need to reserve
+      any space for them in the partition field.  This is the preferred scenario.
+    * If your application servers assign IDs then some number of bits of the partition need to be assigned
+      to identify the server to prevent collisions between application servers.
+    * As more bits are allocated to cluster, fewer bits may be needed for sequence.
+    
 Other strategies for generating IDs that aren't very interesting are:
 * Type 4 Random UUID
     * chance of collision only increases as data grows

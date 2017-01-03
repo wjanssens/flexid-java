@@ -12,7 +12,7 @@ import java.util.logging.Logger;
 
 
 /**
- * Generates 64-bit integer ids with a time component, sequence number component, and partition component.
+ * Generates 64-bit integer ids with a time component, sequence number component, and shard component.
  *
  * This system of generating IDs requires no central authority to generate key values.
  *
@@ -25,50 +25,62 @@ import java.util.logging.Logger;
 public class FlexId {
     private static final Logger logger = Logger.getLogger(FlexId.class.getName());
 
-    public static final long UNIX_EPOCH = 0L;
-    public static final long DEFAULT_EPOCH = 1420070400000L;
-
     private final int sequenceBits;
-    private final int partitionBits;
+    private final int shardBits;
+    private final int constantBits;
     private final int sequenceMask;
-    private final int partitionMask;
+    private final int shardMask;
+    private final int constantMask;
     private final long epoch;
-    private int sequence =  0;
-    private int partition = 0;
+    private int sequence = 0;
+    private int constant = 0;
 
     /**
      * Creates an ID generator.
      * @param epoch the start date for the time component.
-     * @param sequenceBits the number of sequence bits for avoiding sub-millisecond id collisions; recommend between 8 and 12.
-     * @param partitionBits the number of partition bits for identifying nodes/shards; recommend between 6 and 8.
+     * @param sequenceBits the number of bits for avoiding sub-millisecond id collisions; recommend between 8 and 12.
+     * @param shardBits the number of bits for identifying shard; recommend between 6 and 8.
+     * @param constantBits the number of bits for identifying domain, cluster, or entity; recommend 0.
+     * @throws IllegalArgumentException if sequenceBits or shardBits are &lt; 0 or &gt; 15
      */
-    public FlexId(long epoch, int sequenceBits, int partitionBits) {
+    public FlexId(long epoch, int sequenceBits, int shardBits, int constantBits) {
+        if (sequenceBits < 0 || sequenceBits > 15) {
+            throw new IllegalArgumentException("sequenceBits must be between 0 and 15");
+        }
+        if (shardBits < 0 || shardBits > 15) {
+            throw new IllegalArgumentException("shardBits must be between 0 and 15");
+        }
+
         this.epoch = epoch;
+
         this.sequenceBits = sequenceBits;
-        this.partitionBits = partitionBits;
+        this.shardBits = shardBits;
+        this.constantBits = constantBits;
 
-        int mask = 0;
-        for (int i = 0; i < sequenceBits; i++) {
-            mask = (mask << 1) | 1;
-        }
-        this.sequenceMask = mask;
-        mask = 0;
-        for (int i = 0; i < partitionBits; i++) {
-            mask = (mask << 1) | 1;
-        }
-        this.partitionMask = mask;
+        this.sequenceMask = createMask(sequenceBits);
+        this.shardMask = createMask(shardBits);
+        this.constantMask = createMask(constantBits);
 
-        final long millis = (long) Math.pow(2, 64 - sequenceBits - partitionBits - 1);
+        final long millis = (long) Math.pow(2, 64 - sequenceBits - shardBits - constantBits - 1);
         final long years = millis / 1000 / 60 / 60 / 24 / 365;
         final OffsetDateTime start = Instant.ofEpochMilli(epoch).atOffset(ZoneOffset.UTC);
         final OffsetDateTime end = start.plus(millis, ChronoUnit.MILLIS);
 
-        logger.info(String.format("Ids have a time range of %d years (%s to %s), %d sequences, %d partitions",
+        logger.info(String.format("Ids have a time range of %d years (%s to %s), %d sequences, %d shards, %d constants",
                 years,
                 start.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME),
                 end.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME),
                 (int) Math.pow(2, sequenceBits),
-                (int) Math.pow(2, partitionBits)));
+                (int) Math.pow(2, shardBits),
+                (int) Math.pow(2, constantBits)));
+    }
+
+    private static int createMask(int bits) {
+        int mask = 0;
+        for (int i = 0; i < bits; i++) {
+            mask = (mask << 1) | 1;
+        }
+        return mask;
     }
 
     /**
@@ -76,7 +88,7 @@ public class FlexId {
      * leaving 47 bits times for 4462 years of positive values; and and epoch of 1970-01-01T00:00:00Z;
      */
     public FlexId() {
-        this(UNIX_EPOCH, 8, 8);
+        this(0, 8, 8, 0);
     }
 
     /**
@@ -89,6 +101,7 @@ public class FlexId {
 
     /**
      * Sets the sequence number of the generator.
+     * Use this method to initialize a generator with a starting sequence number.
      */
     public FlexId withSequence(int sequence) {
         this.sequence = sequence;
@@ -100,112 +113,92 @@ public class FlexId {
     }
 
     /**
-     * Randomizes the partition of the generator to a random value.
-     * Use this method when you don't have any other reasonable way of partitioning keys.
+     * Sets the constant of the generator.
      */
-    public FlexId withRandomPartition() {
-        return withPartition(new Random().nextInt());
-    }
-
-    /**
-     * Sets the partition of the generator.
-     */
-    public FlexId withPartition(int partition) {
-        this.partition = partition;
+    public FlexId withConstant(int constant) {
+        this.constant = constant;
         return this;
     }
 
-    public int getPartition() {
-        return this.partition;
-    }
-
-
     /**
-     * Generates an ID with the supplied millis, supplied sequence, and supplied partition.
+     * Generates an ID with the supplied millis, supplied sequence, and supplied shard.
      * This method uses the raw millis value and does not adjust for the configured epoch.
      * @param millis the number of milliseconds since epoch
      */
-    public long generate(long millis, int sequence, int partition) {
-        long result = millis << (sequenceBits + partitionBits);
-        result |= (sequence & sequenceMask) << partitionBits;
-        result |= (partition & partitionMask);
+    protected long generate(long millis, int sequence, int shard, int constant) {
+        long result = millis << (sequenceBits + shardBits + constantBits);
+        result |= (sequence & sequenceMask) << (shardBits + constantBits);
+        result |= (shard & shardMask) << (constantBits);
+        result |= (constant & constantMask);
         return result;
     }
 
     /**
-     * Generates an ID with generated millis, supplied sequence, and supplied partition.
+     * Generates an ID with generated millis, next sequence value, and calculated shard, and configured constant.
      */
-    public long generate(int sequence, int partition) {
-        return generate(System.currentTimeMillis() - epoch, sequence, partition);
-    }
-
-    /**
-     * Generates an ID with generated millis, next sequence value, and supplied partition.
-     */
-    public long generate(int partition) {
-        return generate(sequence++, partition);
-    }
-
-    /**
-     * Generates an ID with generated millis, next sequence sequence value, and configured partition.
-     */
-    public long generate() {
-        return generate(partition);
-    }
-
-    /**
-     * Extracts the millis component of an ID.
-     * This is the raw value and is not adjusted for epoch.
-     */
-    public long millis(long id) {
-        return id >> (sequenceBits + partitionBits);
+    public long generate(String shardKey) {
+        return generate(System.currentTimeMillis(), this.sequence++, sha256(shardKey), this.constant);
     }
 
     /**
      * Extracts the date/time component of an ID.
      * This is the derived from the millis component of the ID with the configured epoch applied.
      */
-    public OffsetDateTime timestamp(long id) {
-        return Instant.ofEpochMilli(millis(id) + epoch).atOffset(ZoneOffset.UTC);
+    public OffsetDateTime extractTimestamp(long id) {
+        return Instant.ofEpochMilli(extractMillis(id) + epoch).atOffset(ZoneOffset.UTC);
+    }
+
+    /**
+     * Extracts the millis component of an ID.
+     * This is the raw value and is not adjusted for epoch.
+     */
+    public long extractMillis(long id) {
+        return id >> (sequenceBits + shardBits + constantBits);
     }
 
     /**
      * Extracts the sequence component of an ID.
      */
-    public int sequence(long id) {
-        return (int) ((id >> partitionBits) & sequenceMask);
+    public int extractSequence(long id) {
+        return (int) ((id >> constantBits + shardBits) & sequenceMask);
     }
 
     /**
-     * Extracts the partition component of an ID.
+     * Extracts the shard component of an ID.
      */
-    public int partition(long id) {
-        return (int) (id & partitionMask);
+    public int extractShard(long id) {
+        return (int) ((id >> constantBits) & shardMask);
     }
 
     /**
-     * Extracts the least significant bits of the partition component of an ID.
-     * This serves as a simple method for mapping a large logical partition space onto a smaller physical partition space.
+     * Extracts the constant component of an ID.
+     */
+    public int extractConstant(long id) {
+        return (int) (id & constantMask);
+    }
+
+    /**
+     * Extracts the least significant bits of the shard component of an ID.
+     * This serves as a simple method for mapping a large logical shard space onto a smaller physical shard space.
      * @param id the ID to extract from
      * @param bits the number of bits to extract
-     * @throws IllegalArgumentException if the bits parameter is greater than the number of partition bits of the Id.
+     * @throws IllegalArgumentException if the bits parameter is greater than the number of shard bits of the Id.
      */
-    public int partition(long id, int bits) {
-        if (bits > partitionBits) {
-            throw new IllegalArgumentException("bits must be <= the partition bits of the Id.");
+    public int extractShard(long id, int bits) {
+        if (bits > shardMask) {
+            throw new IllegalArgumentException("bits must be <= the shard bits of the Id.");
         }
-        int mask = 0;
-        for (int i = 0; i < bits; i++) {
-            mask = (mask << 1) | 1;
-        }
-        return partition(id) & mask;
+        return extractShard(id) & createMask(bits);
     }
 
     /**
-     * A convenience method for computing a partition value from a string using an SHA-256 hash.
+     * A convenience method for computing a shard value from a string using an SHA-256 hash.
      * This would typically be used to compute a shard ID from a string identifier such as a username.
      */
     public static int sha256(String text) {
+        if (text == null) {
+            return 0;
+        }
         try {
             final MessageDigest digest = MessageDigest.getInstance("SHA-256");
             final byte[] hash = digest.digest(text.getBytes("UTF-8"));
