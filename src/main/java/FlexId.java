@@ -195,14 +195,14 @@ public class FlexId {
      * A convenience method for computing a shard value from a string using an SHA-256 hash.
      * This would typically be used to compute a shard ID from a string identifier such as a username.
      */
-    public static int sha256(String text) {
+    public static short sha256(String text) {
         if (text == null) {
             return 0;
         }
         try {
             final MessageDigest digest = MessageDigest.getInstance("SHA-256");
             final byte[] hash = digest.digest(text.getBytes("UTF-8"));
-            return ByteBuffer.wrap(hash).getInt();
+            return ByteBuffer.wrap(hash).getShort(18);
         } catch (NoSuchAlgorithmException | UnsupportedEncodingException e) {
             throw new RuntimeException(e);
         }

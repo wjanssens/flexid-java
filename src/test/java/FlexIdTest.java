@@ -18,7 +18,7 @@ public class FlexIdTest {
         assert now.toEpochMilli() - g.extractMillis(id) < 5 : "Incorrect millis " + g.extractMillis(id) + " != " + now.toEpochMilli();
         assert now.compareTo(g.extractTimestamp(id).toInstant()) < 5000 : "Incorrect timestamp " + g.extractTimestamp(id);
         assert 0x00 == g.extractSequence(id) : "Incorrect sequence " + g.extractSequence(id);
-        assert 0x01 == g.extractShard(id) : "Incorrect shard " + g.extractShard(id);
+        assert 0x0B == g.extractShard(id) : "Incorrect shard " + g.extractShard(id);
         assert 0x0A == g.extractConstant(id) : "Incorrect constant " + g.extractConstant(id);
 
         long id2 = g.generate("test");
@@ -35,7 +35,7 @@ public class FlexIdTest {
         assert now.toEpochMilli() - g.extractMillis(id) < 5 : "Incorrect millis " + g.extractMillis(id) + " != " + now.toEpochMilli();
         assert now.compareTo(g.extractTimestamp(id).toInstant()) < 5000 : "Incorrect timestamp " + g.extractTimestamp(id);
         assert 0x00 == g.extractSequence(id) : "Incorrect sequence " + g.extractSequence(id);
-        assert 0x81 == g.extractShard(id) : "Incorrect shard " + g.extractShard(id);
+        assert 0x1B == g.extractShard(id) : "Incorrect shard " + g.extractShard(id);
         assert 0x00 == g.extractConstant(id) : "Incorrect constant " + g.extractConstant(id);
 
         long id2 = g.generate("test");
@@ -52,7 +52,7 @@ public class FlexIdTest {
         assert now.toEpochMilli() - g.extractMillis(id) < 5 : "Incorrect millis " + g.extractMillis(id) + " != " + now.toEpochMilli();
         assert now.compareTo(g.extractTimestamp(id).toInstant()) < 5000 : "Incorrect timestamp " + g.extractTimestamp(id);
         assert 0x00 == g.extractSequence(id) : "Incorrect sequence " + g.extractSequence(id);
-        assert 0x01 == g.extractShard(id) : "Incorrect shard " + g.extractShard(id);
+        assert 0x0B == g.extractShard(id) : "Incorrect shard " + g.extractShard(id);
         assert 0x0A == g.extractConstant(id) : "Incorrect constant " + g.extractConstant(id);
 
         long id2 = g.generate("test");
@@ -69,7 +69,7 @@ public class FlexIdTest {
         assert now.toEpochMilli() - g.extractMillis(id) < 5 : "Incorrect millis " + g.extractMillis(id) + " != " + now.toEpochMilli();
         assert now.compareTo(g.extractTimestamp(id).toInstant()) < 5000 : "Incorrect timestamp " + g.extractTimestamp(id);
         assert 0x00 == g.extractSequence(id) : "Incorrect sequence " + g.extractSequence(id);
-        assert 0x01 == g.extractShard(id) : "Incorrect shard " + g.extractShard(id);
+        assert 0x1B == g.extractShard(id) : "Incorrect shard " + g.extractShard(id);
         assert 0x1A == g.extractConstant(id) : "Incorrect constant " + g.extractConstant(id);
 
         long id2 = g.generate("test");
@@ -86,7 +86,7 @@ public class FlexIdTest {
         assert now.toEpochMilli() - g.extractMillis(id) < 5 : "Incorrect millis " + g.extractMillis(id) + " != " + now.toEpochMilli();
         assert now.compareTo(g.extractTimestamp(id).toInstant()) < 5000 : "Incorrect timestamp " + g.extractTimestamp(id);
         assert 0x00 == g.extractSequence(id) : "Incorrect sequence " + g.extractSequence(id);
-        assert 0x01 == g.extractShard(id) : "Incorrect shard " + g.extractShard(id);
+        assert 0x1B == g.extractShard(id) : "Incorrect shard " + g.extractShard(id);
         assert 0x1A == g.extractConstant(id) : "Incorrect constant " + g.extractConstant(id);
 
         long id2 = g.generate("test");
