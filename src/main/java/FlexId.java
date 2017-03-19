@@ -27,23 +27,19 @@ public class FlexId {
 
     private final int sequenceBits;
     private final int shardBits;
-    private final int constantBits;
     private final int sequenceMask;
     private final int shardMask;
-    private final int constantMask;
     private final long epoch;
     private int sequence = 0;
-    private int constant = 0;
 
     /**
      * Creates an ID generator.
      * @param epoch the start date for the time component.
      * @param sequenceBits the number of bits for avoiding sub-millisecond id collisions; recommend between 8 and 12.
      * @param shardBits the number of bits for identifying shard; recommend between 6 and 8.
-     * @param constantBits the number of bits for identifying domain, cluster, or entity; recommend 0.
      * @throws IllegalArgumentException if sequenceBits or shardBits are &lt; 0 or &gt; 15
      */
-    public FlexId(long epoch, int sequenceBits, int shardBits, int constantBits) {
+    public FlexId(long epoch, int sequenceBits, int shardBits) {
         if (sequenceBits < 0 || sequenceBits > 15) {
             throw new IllegalArgumentException("sequenceBits must be between 0 and 15");
         }
@@ -55,24 +51,21 @@ public class FlexId {
 
         this.sequenceBits = sequenceBits;
         this.shardBits = shardBits;
-        this.constantBits = constantBits;
 
         this.sequenceMask = createMask(sequenceBits);
         this.shardMask = createMask(shardBits);
-        this.constantMask = createMask(constantBits);
 
-        final long millis = (long) Math.pow(2, 64 - sequenceBits - shardBits - constantBits - 1);
+        final long millis = (long) Math.pow(2, 64 - sequenceBits - shardBits - 1);
         final long years = millis / 1000 / 60 / 60 / 24 / 365;
         final OffsetDateTime start = Instant.ofEpochMilli(epoch).atOffset(ZoneOffset.UTC);
         final OffsetDateTime end = start.plus(millis, ChronoUnit.MILLIS);
 
-        logger.info(String.format("Ids have a time range of %d years (%s to %s), %d sequences, %d shards, %d constants",
+        logger.info(String.format("Ids have a time range of %d years (%s to %s), %d sequences, %d shards",
                 years,
                 start.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME),
                 end.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME),
                 (int) Math.pow(2, sequenceBits),
-                (int) Math.pow(2, shardBits),
-                (int) Math.pow(2, constantBits)));
+                (int) Math.pow(2, shardBits)));
     }
 
     private static int createMask(int bits) {
@@ -88,7 +81,7 @@ public class FlexId {
      * leaving 47 bits times for 4462 years of positive values; and and epoch of 1970-01-01T00:00:00Z;
      */
     public FlexId() {
-        this(0, 8, 8, 0);
+        this(0, 8, 8);
     }
 
     /**
@@ -113,31 +106,22 @@ public class FlexId {
     }
 
     /**
-     * Sets the constant of the generator.
-     */
-    public FlexId withConstant(int constant) {
-        this.constant = constant;
-        return this;
-    }
-
-    /**
      * Generates an ID with the supplied millis, supplied sequence, and supplied shard.
      * This method uses the raw millis value and does not adjust for the configured epoch.
      * @param millis the number of milliseconds since epoch
      */
-    protected long generate(long millis, int sequence, int shard, int constant) {
-        long result = millis << (sequenceBits + shardBits + constantBits);
-        result |= (sequence & sequenceMask) << (shardBits + constantBits);
-        result |= (shard & shardMask) << (constantBits);
-        result |= (constant & constantMask);
+    protected long generate(long millis, int sequence, int shard) {
+        long result = millis << (sequenceBits + shardBits);
+        result |= (sequence & sequenceMask) << (shardBits);
+        result |= (shard & shardMask);
         return result;
     }
 
     /**
-     * Generates an ID with generated millis, next sequence value, and calculated shard, and configured constant.
+     * Generates an ID with generated millis, next sequence value, and calculated shard.
      */
     public long generate(String shardKey) {
-        return generate(System.currentTimeMillis(), this.sequence++, sha256(shardKey), this.constant);
+        return generate(System.currentTimeMillis(), this.sequence++, sha256(shardKey));
     }
 
     /**
@@ -153,28 +137,21 @@ public class FlexId {
      * This is the raw value and is not adjusted for epoch.
      */
     public long extractMillis(long id) {
-        return id >> (sequenceBits + shardBits + constantBits);
+        return id >> (sequenceBits + shardBits);
     }
 
     /**
      * Extracts the sequence component of an ID.
      */
     public int extractSequence(long id) {
-        return (int) ((id >> constantBits + shardBits) & sequenceMask);
+        return (int) ((id >> shardBits) & sequenceMask);
     }
 
     /**
      * Extracts the shard component of an ID.
      */
     public int extractShard(long id) {
-        return (int) ((id >> constantBits) & shardMask);
-    }
-
-    /**
-     * Extracts the constant component of an ID.
-     */
-    public int extractConstant(long id) {
-        return (int) (id & constantMask);
+        return (int) (id & shardMask);
     }
 
     /**
