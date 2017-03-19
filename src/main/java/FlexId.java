@@ -25,10 +25,10 @@ import java.util.logging.Logger;
 public class FlexId {
     private static final Logger logger = Logger.getLogger(FlexId.class.getName());
 
-    private final int sequenceBits;
-    private final int shardBits;
-    private final int sequenceMask;
-    private final int shardMask;
+    private final short sequenceBits;
+    private final short shardBits;
+    private final short sequenceMask;
+    private final short shardMask;
     private final long epoch;
     private int sequence = 0;
 
@@ -49,11 +49,11 @@ public class FlexId {
 
         this.epoch = epoch;
 
-        this.sequenceBits = sequenceBits;
-        this.shardBits = shardBits;
+        this.sequenceBits = (short) sequenceBits;
+        this.shardBits = (short) shardBits;
 
-        this.sequenceMask = createMask(sequenceBits);
-        this.shardMask = createMask(shardBits);
+        this.sequenceMask = createMask(this.sequenceBits);
+        this.shardMask = createMask(this.shardBits);
 
         final long millis = (long) Math.pow(2, 64 - sequenceBits - shardBits - 1);
         final long years = millis / 1000 / 60 / 60 / 24 / 365;
@@ -68,12 +68,12 @@ public class FlexId {
                 (int) Math.pow(2, shardBits)));
     }
 
-    private static int createMask(int bits) {
+    private static short createMask(short bits) {
         int mask = 0;
-        for (int i = 0; i < bits; i++) {
+        for (short i = 0; i < bits; i++) {
             mask = (mask << 1) | 1;
         }
-        return mask;
+        return (short) mask;
     }
 
     /**
@@ -105,23 +105,33 @@ public class FlexId {
         return this.sequence;
     }
 
+    public long getEpoch() {
+        return this.epoch;
+    }
+
     /**
      * Generates an ID with the supplied millis, supplied sequence, and supplied shard.
      * This method uses the raw millis value and does not adjust for the configured epoch.
      * @param millis the number of milliseconds since epoch
      */
     protected long generate(long millis, int sequence, int shard) {
-        long result = millis << (sequenceBits + shardBits);
-        result |= (sequence & sequenceMask) << (shardBits);
-        result |= (shard & shardMask);
-        return result;
+        return millis << (sequenceBits + shardBits)
+                | (sequence & sequenceMask) << (shardBits)
+                | (shard & shardMask);
     }
 
     /**
      * Generates an ID with generated millis, next sequence value, and calculated shard.
      */
-    public long generate(String shardKey) {
-        return generate(System.currentTimeMillis(), this.sequence++, sha256(shardKey));
+    public synchronized long generate(String shardKey) {
+        return generate(System.currentTimeMillis() - epoch, this.sequence++, sha256(shardKey));
+    }
+
+    /**
+     * Generates an ID with generated millis, next sequence value, and supplied shard.
+     */
+    public synchronized long generate(short shard) {
+        return generate(System.currentTimeMillis(), this.sequence++, shard);
     }
 
     /**
@@ -129,15 +139,22 @@ public class FlexId {
      * This is the derived from the millis component of the ID with the configured epoch applied.
      */
     public OffsetDateTime extractTimestamp(long id) {
-        return Instant.ofEpochMilli(extractMillis(id) + epoch).atOffset(ZoneOffset.UTC);
+        return Instant.ofEpochMilli(extractMillis(id)).atOffset(ZoneOffset.UTC);
     }
 
     /**
      * Extracts the millis component of an ID.
      * This is the raw value and is not adjusted for epoch.
      */
-    public long extractMillis(long id) {
+    public long extractRawMillis(long id) {
         return id >> (sequenceBits + shardBits);
+    }
+
+    /**
+     * Extracts the millis component of an ID.
+     */
+    public long extractMillis(long id) {
+        return (id >> (sequenceBits + shardBits)) + epoch;
     }
 
     /**
@@ -162,10 +179,10 @@ public class FlexId {
      * @throws IllegalArgumentException if the bits parameter is greater than the number of shard bits of the Id.
      */
     public int extractShard(long id, int bits) {
-        if (bits > shardMask) {
+        if (bits > shardBits) {
             throw new IllegalArgumentException("bits must be <= the shard bits of the Id.");
         }
-        return extractShard(id) & createMask(bits);
+        return extractShard(id) & createMask((short) bits);
     }
 
     /**
