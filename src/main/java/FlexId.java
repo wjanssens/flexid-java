@@ -29,6 +29,8 @@ public class FlexId {
     private final short shardBits;
     private final short sequenceMask;
     private final short shardMask;
+    private final short checkBits;
+    private final short checkMask;
     private final long epoch;
     private int sequence = 0;
 
@@ -37,14 +39,18 @@ public class FlexId {
      * @param epoch the start date for the time component.
      * @param sequenceBits the number of bits for avoiding sub-millisecond id collisions; recommend between 8 and 12.
      * @param shardBits the number of bits for identifying shard; recommend between 6 and 8.
+     * @param checkBits is the number of bits for checksum; either 0 or 4.
      * @throws IllegalArgumentException if sequenceBits or shardBits are &lt; 0 or &gt; 15
      */
-    public FlexId(long epoch, int sequenceBits, int shardBits) {
+    public FlexId(long epoch, int sequenceBits, int shardBits, int checkBits) {
         if (sequenceBits < 0 || sequenceBits > 15) {
             throw new IllegalArgumentException("sequenceBits must be between 0 and 15");
         }
         if (shardBits < 0 || shardBits > 15) {
             throw new IllegalArgumentException("shardBits must be between 0 and 15");
+        }
+        if (!(checkBits == 0 || checkBits == 4)) {
+            throw new IllegalArgumentException("checkBits must be be either 0 or 4");
         }
 
         this.epoch = epoch;
@@ -54,6 +60,9 @@ public class FlexId {
 
         this.sequenceMask = createMask(this.sequenceBits);
         this.shardMask = createMask(this.shardBits);
+
+        this.checkBits = (short) checkBits;
+        this.checkMask = createMask(this.checkBits);
 
         final long millis = (long) Math.pow(2, 64 - sequenceBits - shardBits - 1);
         final long years = millis / 1000 / 60 / 60 / 24 / 365;
@@ -77,11 +86,12 @@ public class FlexId {
     }
 
     /**
-     * Creates a generator with 8 bits sequences for 256 ids per millisecond, and 8 bit partitions for for 256 partitions,
+     * Creates a generator with 8 bits sequences for 256 ids per millisecond,
+     * 8 bit partitions for for 256 partitions, 0 bit checksums,
      * leaving 47 bits times for 4462 years of positive values; and and epoch of 1970-01-01T00:00:00Z;
      */
     public FlexId() {
-        this(0, 8, 8);
+        this(0, 8, 8, 0);
     }
 
     /**
@@ -115,9 +125,10 @@ public class FlexId {
      * @param millis the number of milliseconds since epoch
      */
     protected long generate(long millis, int sequence, int shard) {
-        return millis << (sequenceBits + shardBits)
-                | (sequence & sequenceMask) << (shardBits)
-                | (shard & shardMask);
+        long v = millis << (sequenceBits + shardBits + checkBits)
+                | (sequence & sequenceMask) << (shardBits + checkBits)
+                | (shard & shardMask) << (checkBits);
+        return checkBits == 0 ? v : generateLuhn16(v);
     }
 
     /**
@@ -130,7 +141,7 @@ public class FlexId {
     /**
      * Generates an ID with generated millis, next sequence value, and supplied shard.
      */
-    public synchronized long generate(short shard) {
+    public synchronized long generate(int shard) {
         return generate(System.currentTimeMillis(), this.sequence++, shard);
     }
 
@@ -186,7 +197,7 @@ public class FlexId {
     }
 
     /**
-     * A convenience method for computing a shard value from a string using an SHA-256 hash.
+     * A convenience method for computing a shard value from a string using an SHA-1 hash.
      * This would typically be used to compute a shard ID from a string identifier such as a username.
      */
     public static short sha256(String text) {
@@ -194,11 +205,48 @@ public class FlexId {
             return 0;
         }
         try {
-            final MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            final MessageDigest digest = MessageDigest.getInstance("SHA-1");
             final byte[] hash = digest.digest(text.getBytes("UTF-8"));
             return ByteBuffer.wrap(hash).getShort(18);
         } catch (NoSuchAlgorithmException | UnsupportedEncodingException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    public static long generateLuhn16(long input) {
+        int factor = 2;
+        int sum = 0;
+        long runningValue = input;
+
+        for (int i = 0; i < 16; i++) {
+            runningValue = runningValue >> 4;
+            int codePoint = (int) (runningValue & 0xf);
+            int addend = factor * codePoint;
+            factor = (factor == 2) ? 1 : 2;
+            addend = (addend / 0xf) + (addend % 0xf);
+            sum += addend;
+        }
+
+        int remainder = sum % 0xf;
+        int check = (0xf - remainder) % 0xf;
+        return input | check;
+    }
+
+    public static boolean validateLuhn16(long input) {
+        int factor = 1;
+        int sum = 0;
+        long runningValue = input;
+
+        for (int i = 0; i < 16; i++) {
+            int codePoint = (int) (runningValue & 0xf);
+            int addend = factor * codePoint;
+            factor = (factor == 2) ? 1 : 2;
+            addend = (addend / 0xf) + (addend % 0xf);
+            sum += addend;
+            runningValue = runningValue >> 4;
+        }
+
+        int remainder = sum % 0xf;
+        return (remainder == 0);
     }
 }
